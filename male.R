@@ -73,9 +73,11 @@ ddsHTSeq <- ddsHTSeq[keep,]
 dds <- DESeq(ddsHTSeq)
 resultsNames(dds)
 res <- results(dds, name="condition_knockout_vs_wild")
+saveRDS(res,file="maleres.RDS")
 summary(res)
 
 res_shrink <- lfcShrink(dds,type="ashr",coef="condition_knockout_vs_wild")
+saveRDS(res_shrink,file="res_shrink.RDS")
 
 res_ranked <- as.data.frame(res_shrink) %>%
   filter(padj < 0.1) %>%
@@ -165,7 +167,7 @@ head(go_annotation)
 # put results and annotation in the same table
 # (Add gene names to DE results)
 res_shrink <- lfcShrink(dds,type="ashr",coef="condition_knockout_vs_wild")
-
+saveRDS(res_shrink,file="res_shrink.RDS")
 res_shrink_data <- res_shrink %>% 
   as.data.frame() %>%
   rownames_to_column(var = "ensembl_gene_id") 
@@ -220,6 +222,8 @@ plot(x=res_shrink$log2FoldChange,
      col=(log_padj > 10)+1, # color padj < 0.1 red
      ylab="negative log-scaled adjusted p-value",
      xlab="shrunken log2 fold changes")
+###### do volcano plot with 0.1 and 0.05 ######
+##up and down regulated : positive and negative - 0.5, 0.1
 
 # normalized, variance-stabilized transformed counts for visualization
 vsd <- vst(dds, blind=FALSE)
@@ -467,7 +471,7 @@ png("GSEA_dotplot.png", width = 2000, height = 2000, res = 300)
 dotplot(res_gsea, showCategory = 10) +
   ggtitle("GSEA Dot Plot")
 dev.off()
-
+###50 categories - Jill
 
 # Example data for heatmap
 #pathwayGenes <- pathway[["Example_Set"]]
@@ -534,6 +538,8 @@ for (i in 1:26) {
   dev.off()
 }
 
+#enricher in rstudio 
+
 #Save results:
 #normalized counts and gene names:
 write.csv(df,file="MaleNormalizedCounts.csv")
@@ -545,7 +551,6 @@ write.csv(enrichobj, file="OverRepresentation.csv")
 write.csv(gseaobj, file="GSEA.csv")
 write.csv(univ, file="backgroundgenes.csv")
 write.csv(genes, file="GenesforShiny.csv")
+write.csv(res_shrink_ann, file="shrunken_results_male.csv")
 
 
-clipr::write_clip(univ)
-clipr::write_clip(genes)
