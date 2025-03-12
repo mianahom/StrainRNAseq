@@ -10,6 +10,7 @@ library("ggplot2")
 library("clusterProfiler")
 library("enrichplot")
 library("ggupset")
+library("EnhancedVolcano")
 
 #count and metadata
 
@@ -73,9 +74,11 @@ ddsHTSeq <- ddsHTSeq[keep,]
 dds <- DESeq(ddsHTSeq)
 resultsNames(dds)
 res <- results(dds, name="condition_heterozygous_vs_wild")
+saveRDS(res,file="femaleres.RDS")
 summary(res)
 
 res_shrink <- lfcShrink(dds,type="ashr",coef="condition_heterozygous_vs_wild")
+saveRDS(res_shrink,file="res_shrink.RDS")
 
 res_ranked <- as.data.frame(res_shrink) %>%
   filter(padj < 0.1) %>%
@@ -252,6 +255,13 @@ top50 <- rs %>%
   head(n = 50) %>%
   select("ensembl_gene_id","external_gene_name")
 
+heatmap_sig <- rs %>% 
+  data.frame() %>%
+  filter(padj < 0.1) %>%
+  arrange(-abs(log2FoldChange)) %>%
+  select("ensembl_gene_id","external_gene_name")
+
+
 
 # heatmap of normalized variance-stabilized transformed counts top 50
 png("top50_heatmap.png", width = 5000, height = 5000, res = 500)
@@ -280,6 +290,26 @@ dev.off()
 #rescaled by overall expression level
 rescaled <- assay(vsd)-rowMeans(assay(vsd))
 
+#heatmap of all significant genes
+png("significant_rescaled_correlation_heatmap.png", width = 5000, height = 5000, res = 500)
+pheatmap(
+  rescaled[heatmap_sig$ensembl_gene_id,], 
+  cluster_rows=TRUE, 
+  show_rownames=FALSE,
+  cluster_cols=TRUE,
+  annotation_col=dataframe,
+  clustering_distance_rows="correlation"
+)
+dev.off()
+#"euclidean", "maximum", "manhattan", "canberra", "binary" or "minkowski"
+pheatmap(
+  assay(vsd)[heatmap_sig$ensembl_gene_id,], 
+  cluster_rows=TRUE, 
+  show_rownames=FALSE,
+  cluster_cols=TRUE,
+  annotation_col=dataframe
+)
+
 #rescaled top 50 spearman corr
 png("top50rescaled_spearmancorrelation_heatmap.png", width = 5000, height = 5000, res = 500)
 pheatmap(
@@ -295,7 +325,7 @@ dev.off()
 
 candidates <- c("Kcnk3","Kcnk9","Th",
                 "Gfap","Phox2b","Epas1",
-                "Hif1a","Fos","Egln1",
+                "Hif1a","Egln1",
                 "Kcna3","Kcnd3","Hcn1",
                 "Cacna1c","Scn10a","Scn11a",
                 "Ndufs2","Cox4i2","Cox8b",
@@ -308,7 +338,7 @@ candidates <- data.frame(values=candidates)
 names(candidates)[1] <- "external_gene_name"
 candidates <- left_join(candidates, annotation, by = "external_gene_name")
 
-Hypoxia <- c("Epas1", "Hif1a", "Egln1", "Fos") %>%
+Hypoxia <- c("Epas1", "Hif1a", "Egln1") %>%
   data.frame(external_gene_name = .) %>%  # Create a data frame with column name
   left_join(annotation, by = "external_gene_name")
 
@@ -512,7 +542,8 @@ countPlots <- function(df, ens_gene_id, factor_table){
   
   ggplot(newdf, aes(x=newdf[,2],y=newdf[,1])) +
     geom_boxplot() + 
-    geom_jitter() +
+    geom_point(position = position_dodge(0.75), 
+               alpha = 0.7, size = 2) + 
     ggtitle(df[gene,]$external_gene_name) +
     ylab("log-scaled (log 10 +1 ) normalized counts") +
     xlab(colnames(newdf)[2])
@@ -520,13 +551,13 @@ countPlots <- function(df, ens_gene_id, factor_table){
 
 #MeCP2
 #ENSMUSG00000031393
-png("male_countplot_Mecp2.png", width = 1000, height = 1000, res = 300)
+png("female_countplot_Mecp2.png", width = 1000, height = 1000, res = 300)
 countPlots(df, "ENSMUSG00000031393", ft)
 dev.off()
 
 for (i in 1:26) { 
   name <- candidates$external_gene_name[i] 
-  file_name <- paste0("male_countplot_",name,".png")
+  file_name <- paste0("female_countplot_",name,".png")
   png(file_name, width = 1000, height = 1000, res = 300)
   countplot <- countPlots(df, candidates$ensembl_gene_id[i], ft)
   print(countplot)
@@ -535,15 +566,13 @@ for (i in 1:26) {
 
 #Save results:
 #normalized counts and gene names:
-write.csv(df,file="MaleNormalizedCounts.csv")
+write.csv(df,file="FemaleNormalizedCounts.csv")
 #results and annotation
-write.csv(res_ann, file="MaleResults.csv")
+write.csv(res_ann, file="FemaleResults.csv")
 write.csv(go_annotation, file="GoTerms.csv")
 #GSEA and Overrepresentation
 write.csv(enrichobj, file="OverRepresentation.csv")
 write.csv(gseaobj, file="GSEA.csv")
 write.csv(univ, file="backgroundgenes.csv")
 write.csv(genes, file="GenesforShiny.csv")
-
-clipr::write_clip(univ)
-clipr::write_clip(genes)
+write.csv(res_shrink_ann, file="shrunken_results_female.csv")
