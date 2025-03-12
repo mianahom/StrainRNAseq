@@ -1,0 +1,252 @@
+---
+title: "Female Gene Ontology Visualizations"
+author: Mia Nahom
+date: 2025-2-11
+format: 
+  html:
+     df-print: paged
+     embed-resources: true
+---
+#### Read in results file
+```{r}
+res_ann <- read.csv(file = "FemaleResults.csv")
+res_ann <- res_ann[,-1]  
+res_ann 
+go_annotation <- read.csv(file="GoTerms.csv")
+go_annotation <- go_annotation[,-1]
+go_annotation
+res <- readRDS(file="femaleres.RDS")
+res_shrink <- readRDS(file="res_shrink.RDS")
+```
+
+#### Load libraries
+```{r}
+#| output: false
+library("DESeq2")
+library("apeglm")
+library("pheatmap")
+library("tidyverse")
+library("ggrepel")
+library("ashr")
+library("goseq")
+library("biomaRt")
+library("ggplot2")
+library("clusterProfiler")
+library("enrichplot")
+library("ggupset")
+library("quarto")
+library("EnhancedVolcano")
+```
+## Enrichment Analyses
+
+### Over-representation with enricher() function 0.1
+
+#### All SDE genes
+```{r}
+# get ENSEMBL gene IDs for genes with padj < 0.1
+genes <- rownames(res[which(res$padj < 0.1),])
+# get ENSEMBL gene IDs for universe (all genes with non-NA padj passed independent filtering)
+univ <- rownames(res[!is.na(res$padj),])
+# pull out the columns of go_ann containing GO IDs and descriptions, keep only unique entries. 
+gonames <- unique(go_annotation[,c(3,4)]) %>% unique()
+
+enrich <- enricher(
+  gene=genes,
+  universe=univ,
+  TERM2GENE=go_annotation[,c(3,1)],
+  TERM2NAME=gonames
+)
+
+enrichobj<-as.data.frame(enrich)
+enrichobj
+```
+
+```{r}
+upsetplot(enrich)
+barplot(enrich)
+dotplot(enrich)
+```
+#### Up-regulated
+```{r}
+# get ENSEMBL gene IDs for genes with padj < 0.1
+upgenes <- rownames(res[which(res$padj < 0.1 & res$log2FoldChange > 0), ])
+enrich_up <- enricher(
+  gene=upgenes,
+  universe=univ,
+  TERM2GENE=go_annotation[,c(3,1)],
+  TERM2NAME=gonames
+)
+
+enrichobj_up<-as.data.frame(enrich_up)
+enrichobj_up
+```
+
+```{r}
+upsetplot(enrich_up)
+barplot(enrich_up)
+dotplot(enrich_up)
+```
+#### Down-regulated
+```{r}
+# get ENSEMBL gene IDs for genes with padj < 0.1
+downgenes <- rownames(res[which(res$padj < 0.1 & res$log2FoldChange < 0), ])
+enrich_down <- enricher(
+  gene=downgenes,
+  universe=univ,
+  TERM2GENE=go_annotation[,c(3,1)],
+  TERM2NAME=gonames
+)
+
+enrichobj_down<-as.data.frame(enrich_down)
+enrichobj_down
+```
+
+```{r}
+upsetplot(enrich_down)
+barplot(enrich_down)
+dotplot(enrich_down)
+```
+### Over-representation with enricher() function 0.05
+
+#### All SDE genes
+```{r}
+# get ENSEMBL gene IDs for genes with padj < 0.0.5
+genes_0.05 <- rownames(res[which(res$padj < 0.05),])
+# get ENSEMBL gene IDs for universe (all genes with non-NA padj passed independent filtering)
+univ <- rownames(res[!is.na(res$padj),])
+# pull out the columns of go_ann containing GO IDs and descriptions, keep only unique entries. 
+gonames <- unique(go_annotation[,c(3,4)]) %>% unique()
+
+enrich_0.05 <- enricher(
+  gene=genes_0.05,
+  universe=univ,
+  TERM2GENE=go_annotation[,c(3,1)],
+  TERM2NAME=gonames
+)
+
+enrichobj_0.05<-as.data.frame(enrich_0.05)
+enrichobj_0.05
+```
+
+```{r}
+upsetplot(enrich_0.05)
+barplot(enrich_0.05)
+dotplot(enrich_0.05)
+```
+#### Up-regulated
+```{r}
+# get ENSEMBL gene IDs for genes with padj < 0.05
+upgenes_0.05 <- rownames(res[which(res$padj < 0.05 & res$log2FoldChange > 0), ])
+enrich_up_0.05 <- enricher(
+  gene=upgenes_0.05,
+  universe=univ,
+  TERM2GENE=go_annotation[,c(3,1)],
+  TERM2NAME=gonames
+)
+
+enrichobj_up_0.05<-as.data.frame(enrich_up_0.05)
+enrichobj_up_0.05
+```
+
+```{r}
+upsetplot(enrich_up_0.05)
+barplot(enrich_up_0.05)
+dotplot(enrich_up_0.05)
+```
+#### Down-regulated
+```{r}
+# get ENSEMBL gene IDs for genes with padj < 0.05
+downgenes_0.05 <- rownames(res[which(res$padj < 0.05 & res$log2FoldChange < 0), ])
+enrich_down_0.05 <- enricher(
+  gene=downgenes_0.05,
+  universe=univ,
+  TERM2GENE=go_annotation[,c(3,1)],
+  TERM2NAME=gonames
+)
+
+enrichobj_down_0.05<-as.data.frame(enrich_down_0.05)
+enrichobj_down_0.05
+```
+
+
+```{r}
+upsetplot(enrich_down_0.05)
+barplot(enrich_down_0.05)
+dotplot(enrich_down_0.05)
+```
+
+
+
+## GSEA Analysis
+```{r}
+# extract log2 fold changes, only for genes that passed independent filtering. 
+l2fcs <- as.data.frame(res) %>% 
+  filter(!is.na(padj)) %>%
+  select(log2FoldChange)
+
+# put log2FCs in a vector, add gene IDs as names, sort 
+l2fcvec <- l2fcs[,1]
+names(l2fcvec) <- rownames(l2fcs)
+l2fcvec <- sort(l2fcvec, decreasing=TRUE)
+
+res_gsea <- GSEA(
+  geneList=l2fcvec,
+  TERM2GENE=go_annotation[,c(3,1)],
+  TERM2NAME=gonames
+) 
+
+gseaobj <-as.data.frame(res_gsea)
+gseaobj
+```
+
+#### GSEA visualizations
+
+```{r}
+gseaplot(res_gsea, by = "all", title = enrich$Description[93], geneSetID = 93)
+
+gseaplot(res_gsea, by = "all", title = enrich$Description[2], geneSetID = 2)
+
+upsetplot(res_gsea)
+dotplot(res_gsea, showCategory = 10) +
+  ggtitle("GSEA Dot Plot")
+```
+
+#### Volcano plots
+
+```{r}
+EnhancedVolcano(res,
+    lab=rownames(res),
+    selectLab = c(''),
+    x = 'log2FoldChange',
+    y = 'padj',
+    title = 'Volcano Plot - Female',
+    colAlpha=0.5,
+    pCutoff = 0.05,
+    FCcutoff = 0,
+    pointSize = 3.0,
+    col=c('black', 'black', 'black', 'red3'),
+    xlim=c(-8,8))
+```
+```{r}
+EnhancedVolcano(res_ann,
+    lab = res_ann$external_gene_name,
+    selectLab = c(''),
+    x = 'log2FoldChange',
+    y = 'padj',
+    title = 'Volcano Plot',
+    pCutoff = 0.05,
+    FCcutoff = 1,
+    pointSize = 3.0,
+    labSize = 6.0)
+```
+
+```{r}
+write.csv(enrichobj, file="enrich_0.1.csv")
+write.csv(enrichobj_up, file="enrich_up_0.1.csv")
+write.csv(enrichobj_down, file="enrich_down_0.1.csv")
+
+write.csv(enrichobj_0.05, file="enrich_0.05.csv")
+write.csv(enrichobj_up_0.05, file="enrich_up_0.05.csv")
+write.csv(enrichobj_down_0.05, file="enrich_down_0.05.csv")
+```
+
